@@ -197,24 +197,25 @@ func (n *Neighbor) Connect() error {
 
 func (n *Neighbor) Disconnect() {
 	log.Infof("%v: Disconnected", n.String())
+	wasConnected := n.Connected
 	n.Connected = false
 	n.State.OpenReceived = false
 	n.tcpconn.Close()
 	n.UpdateState(STATE_IDLE)
 
-	if n.HandlerEvent != nil {
+	if n.HandlerEvent != nil && wasConnected == true {
 		n.HandlerEvent.DisconnectedNeighbor(n)
 	}
 
 	if n.RemoveOnDisconnect && n.s != nil && n.s.Manager != nil {
 		log.Infof("%v: Removing from manager", n.String())
 		select {
-		case n.qLife <- true:
-		default:
+			case n.qLife <- true:
+			default:
 		}
 		select {
-		case n.qSender <- true:
-		default:
+			case n.qSender <- true:
+			default:
 		}
 
 		n.s.Manager.RemoveNeighbor(n)
