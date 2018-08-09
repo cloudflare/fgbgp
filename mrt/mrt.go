@@ -780,32 +780,35 @@ func DecodeBGP4TD2(buf io.Reader, timestamp time.Time, subtype uint16, length ui
 	return nil, nil
 }
 
+type mrtBinaryHeader struct {
+	Timestamp uint32
+	Mrttype uint16
+	Mrtsubtype uint16
+	Mrtlength uint32
+}
+
 func DecodeSingle(buf io.Reader) (Mrt, error) {
-	var timestamp uint32
-	var mrttype uint16
-	var mrtsubtype uint16
-	var mrtlength uint32
+	hdr := mrtBinaryHeader{}
 
-	binary.Read(buf, binary.BigEndian, &timestamp)
-	binary.Read(buf, binary.BigEndian, &mrttype)
-	binary.Read(buf, binary.BigEndian, &mrtsubtype)
-	binary.Read(buf, binary.BigEndian, &mrtlength)
+	e := binary.Read(buf, binary.BigEndian, &hdr)
+	if e != nil { return nil, e }
 
-	timestampP := time.Unix(int64(timestamp), 0)
+	timestampP := time.Unix(int64(hdr.Timestamp), 0)
 
-	content := make([]byte, mrtlength)
-	binary.Read(buf, binary.BigEndian, &content)
+	content := make([]byte, hdr.Mrtlength)
+	e = binary.Read(buf, binary.BigEndian, &content)
+	if e != nil { return nil, e }
 	tmpbuf := bytes.NewBuffer(content)
 
 	var mrt Mrt
 	var err error
-	switch mrttype {
+	switch hdr.Mrttype {
 	case TYPE_BGP4MP:
-		mrt, err = DecodeBGP4MP(tmpbuf, timestampP, mrtsubtype, mrtlength)
+		mrt, err = DecodeBGP4MP(tmpbuf, timestampP, hdr.Mrtsubtype, hdr.Mrtlength)
 	case TYPE_TABLE_DUMPV2:
-		mrt, err = DecodeBGP4TD2(tmpbuf, timestampP, mrtsubtype, mrtlength)
+		mrt, err = DecodeBGP4TD2(tmpbuf, timestampP, hdr.Mrtsubtype, hdr.Mrtlength)
 	default:
-		err = errors.New(fmt.Sprintf("Decoding of type %v not implemented", mrttype))
+		err = errors.New(fmt.Sprintf("Decoding of type %v not implemented", hdr.Mrttype))
 	}
 
 	return mrt, err
